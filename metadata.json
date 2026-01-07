@@ -1,0 +1,7 @@
+{
+  "name": "Bootcamp Elite Dashboard",
+  "description": "A premium fullstack bootcamp platform featuring a gated paywall, comprehensive learning dashboard, and an integrated AI Tutor powered by Gemini.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
