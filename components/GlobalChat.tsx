@@ -6,14 +6,29 @@ interface GlobalChatProps {
   user: User;
 }
 
+import { DataService } from '../services/dataService';
+
 const GlobalChat: React.FC<GlobalChatProps> = ({ user }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', sender: 'System', text: 'Welcome to the Bootcamp Community Chat!', timestamp: Date.now() - 100000, role: 'system' },
-    { id: '2', sender: 'Sarah Drasner', text: 'Great work on the React assignments, everyone!', timestamp: Date.now() - 50000, role: 'model' },
-    { id: '3', sender: 'Alex Johnson', text: 'Does anyone have a minute to look at my GraphQL schema?', timestamp: Date.now() - 20000, role: 'user' },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const loadMessages = async () => {
+      const data = await DataService.getChatMessages();
+      const formatted: ChatMessage[] = data.map((m: any) => ({
+        id: m.id,
+        sender: m.sender_name,
+        text: m.content,
+        timestamp: new Date(m.created_at).getTime(),
+        role: m.sender_id === user.id ? 'user' : 'model' // Simplified role logic
+      }));
+      setMessages(formatted);
+    };
+    loadMessages();
+    const interval = setInterval(loadMessages, 5000); // Poll for updates
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -21,19 +36,27 @@ const GlobalChat: React.FC<GlobalChatProps> = ({ user }) => {
     }
   }, [messages]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const newMsg: ChatMessage = {
+    const newMsgDisplay: ChatMessage = {
       id: Date.now().toString(),
       sender: user.name,
       text: input,
       timestamp: Date.now(),
       role: 'user'
     };
-    setMessages([...messages, newMsg]);
+
+    // Optimistic
+    setMessages([...messages, newMsgDisplay]);
     setInput('');
+
+    await DataService.sendChatMessage({
+      sender_id: user.id,
+      sender_name: user.name,
+      content: input
+    });
   };
 
   return (
@@ -44,7 +67,7 @@ const GlobalChat: React.FC<GlobalChatProps> = ({ user }) => {
           <p className="text-xs text-slate-500 font-medium">Chat with all students and tutors in real-time.</p>
         </div>
         <div className="flex -space-x-2">
-          {[1,2,3,4].map(i => (
+          {[1, 2, 3, 4].map(i => (
             <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-slate-200 overflow-hidden">
               <img src={`https://i.pravatar.cc/150?u=${i}`} alt="user" />
             </div>
@@ -62,13 +85,12 @@ const GlobalChat: React.FC<GlobalChatProps> = ({ user }) => {
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{m.sender}</span>
               <span className="text-[10px] text-slate-300">{new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div className={`max-w-[70%] px-5 py-3 rounded-2xl text-sm ${
-              m.sender === user.name 
-                ? 'bg-indigo-600 text-white rounded-tr-none' 
-                : m.role === 'system' 
-                  ? 'bg-slate-100 text-slate-500 italic text-xs' 
-                  : 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100'
-            }`}>
+            <div className={`max-w-[70%] px-5 py-3 rounded-2xl text-sm ${m.sender === user.name
+              ? 'bg-indigo-600 text-white rounded-tr-none'
+              : m.role === 'system'
+                ? 'bg-slate-100 text-slate-500 italic text-xs'
+                : 'bg-slate-50 text-slate-700 rounded-tl-none border border-slate-100'
+              }`}>
               {m.text}
             </div>
           </div>

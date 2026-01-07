@@ -24,10 +24,11 @@ export interface User {
   isPaid: boolean;
   role: 'student' | 'tutor';
   tier: 'full-access' | null;
-  bootcampId?: string; 
+  bootcampId?: string;
   bootcampData?: BootcampData; // Added to store tutor's bootcamp info
   referralCode?: string;
   referralCount?: number;
+  ownedBootcamps?: Bootcamp[]; // List of bootcamps managed by the tutor
 }
 
 export interface BootcampUpdate {
@@ -113,4 +114,17 @@ export interface LectureSummary {
   summary: string;
   keyPoints: string[];
   generatedAt: number;
+}
+
+export interface Session {
+  id: string;
+  title: string;
+  date: string; // ISO date string YYYY-MM-DD
+  time: string; // HH:MM format
+  duration: number; // in minutes
+  description: string;
+  joinUrl: string;
+  attendees: number;
+  transcript?: string;
+  instructor?: string;
 }

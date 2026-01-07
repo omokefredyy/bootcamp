@@ -10,8 +10,8 @@ import GlobalChat from '../components/GlobalChat';
 import DirectMessages from '../components/DirectMessages';
 import CollaborationRoom from '../components/CollaborationRoom';
 import ReferralPanel from '../components/ReferralPanel';
-import { BOOTCAMP_UPDATES, BOOTCAMP_MATERIALS, BOOTCAMP_SCHEDULE } from '../constants';
 import { User } from '../types';
+import { DataService } from '../services/dataService';
 
 interface DashboardProps {
   user: User;
@@ -22,6 +22,17 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isMeetingActive, setIsMeetingActive] = useState(false);
+  const [updates, setUpdates] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const loadData = async () => {
+      if (user.bootcampId) {
+        const ups = await DataService.getUpdates(user.bootcampId);
+        setUpdates(ups);
+      }
+    };
+    loadData();
+  }, [user.bootcampId]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -33,7 +44,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
                 <h2 className="text-4xl font-black text-slate-900 tracking-tight">Focus on the prize, {user.name.split(' ')[0]}. 🚀</h2>
                 <p className="text-slate-500 mt-2 text-lg">You are on the <span className="font-bold text-indigo-600">Elite Pathway</span>. {34}% of curriculum complete.</p>
               </div>
-              <div 
+              <div
                 onClick={() => setActiveTab('lecture')}
                 className="group cursor-pointer bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-6 hover:border-indigo-300 transition-all transform hover:-translate-y-1"
               >
@@ -75,7 +86,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
                   <button onClick={() => setActiveTab('updates')} className="text-[10px] font-black uppercase text-indigo-600 tracking-widest hover:underline">View All</button>
                 </div>
                 <div className="space-y-8">
-                  {BOOTCAMP_UPDATES.slice(0, 2).map((up) => (
+                  {updates.length === 0 ? <p className="text-slate-400">No board announcements.</p> : updates.slice(0, 2).map((up) => (
                     <div key={up.id} className="group cursor-pointer">
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-tighter">{up.category}</span>
@@ -95,13 +106,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
                     Don't code alone. Join your team in the Collaboration Room or chat with the community to solve blockers.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4">
-                    <button 
+                    <button
                       onClick={() => setActiveTab('collab')}
                       className="px-8 py-4 bg-white text-slate-900 font-bold rounded-2xl hover:bg-slate-100 transition-all flex items-center justify-center gap-2 shadow-xl"
                     >
                       Enter Team Room
                     </button>
-                    <button 
+                    <button
                       onClick={() => setActiveTab('chat')}
                       className="px-8 py-4 bg-white/10 text-white border border-white/20 font-bold rounded-2xl hover:bg-white/20 transition-all flex items-center justify-center gap-2"
                     >
@@ -133,7 +144,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
                 <h3 className="text-3xl font-black text-slate-900 mb-4">Quiet on Set.</h3>
                 <p className="text-slate-500 max-w-md mb-10 text-lg">No active lecture found. The instructor hasn't opened the meeting yet.</p>
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <button 
+                  <button
                     onClick={() => setIsMeetingActive(true)}
                     className="px-10 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100"
                   >
@@ -156,7 +167,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
         return (
           <div className="space-y-6 animate-fadeIn">
             <h2 className="text-3xl font-extrabold text-slate-900 mb-8">AI Session Summaries</h2>
-            <LectureSummaryList />
+            <LectureSummaryList bootcampId={user.bootcampId} />
           </div>
         );
       case 'profile':
@@ -165,13 +176,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
         return (
           <div className="space-y-6 max-w-4xl animate-fadeIn">
             <h2 className="text-3xl font-extrabold text-slate-900 mb-8 text-center">Bootcamp Updates</h2>
-            {BOOTCAMP_UPDATES.map((up) => (
+            {updates.length === 0 ? <div className="text-center py-20 text-slate-400">All caught up! No new updates.</div> : updates.map((up) => (
               <div key={up.id} className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100">
                 <div className="flex items-center gap-4 mb-6">
-                  <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                    up.category === 'Announcement' ? 'bg-indigo-100 text-indigo-700' :
+                  <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${up.category === 'Announcement' ? 'bg-indigo-100 text-indigo-700' :
                     up.category === 'Schedule' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                  }`}>
+                    }`}>
                     {up.category}
                   </span>
                   <span className="text-slate-400 text-xs font-bold">{up.date}</span>
@@ -195,9 +205,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
           {renderContent()}
         </div>
       </main>
-      
+
       {/* Floating AI Assistant Trigger */}
-      <button 
+      <button
         onClick={() => setActiveTab('chat')}
         className="fixed bottom-10 right-10 w-16 h-16 bg-indigo-600 text-white rounded-3xl shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40 group"
       >

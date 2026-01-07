@@ -1,29 +1,26 @@
-
 import React, { useState, useEffect } from 'react';
 import { summarizeLecture } from '../services/gemini';
-import { Lecture, LectureSummary } from '../types';
+import { Lecture, LectureSummary, Session } from '../types';
+import { DataService } from '../services/dataService';
 
-const MOCK_LECTURES: Lecture[] = [
-  {
-    id: 'l1',
-    title: 'Advanced React: Beyond the Basics',
-    instructor: 'Sarah Drasner',
-    date: '2024-05-20',
-    transcript: 'In this session we discussed the Virtual DOM, reconcile algorithms, and how Fiber works under the hood. We explored why keys are important in lists and how to optimize re-renders using useMemo and useCallback. Finally, we looked at the new Concurrent features in React 18.'
-  },
-  {
-    id: 'l2',
-    title: 'Node.js Performance Tuning',
-    instructor: 'Ryan Dahl',
-    date: '2024-05-18',
-    transcript: 'Today we covered profiling Node applications, finding memory leaks, and understanding the event loop. We discussed how libuv handles async I/O and why blocking the main thread is dangerous for high-throughput servers.'
-  }
-];
+interface LectureSummaryListProps {
+  bootcampId?: string;
+}
 
-const LectureSummaryList: React.FC = () => {
+const LectureSummaryList: React.FC<LectureSummaryListProps> = ({ bootcampId }) => {
   const [summaries, setSummaries] = useState<LectureSummary[]>([]);
+  const [lectures, setLectures] = useState<Session[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
+  useEffect(() => {
+    const loadLectures = async () => {
+      if (bootcampId) {
+        const data = await DataService.getSessions(bootcampId);
+        setLectures(data);
+      }
+    };
+    loadLectures();
+  }, [bootcampId]);
   useEffect(() => {
     const saved = localStorage.getItem('lecture_summaries');
     if (saved) setSummaries(JSON.parse(saved));
@@ -33,7 +30,11 @@ const LectureSummaryList: React.FC = () => {
     localStorage.setItem('lecture_summaries', JSON.stringify(summaries));
   }, [summaries]);
 
-  const handleSummarize = async (lecture: Lecture) => {
+  const handleSummarize = async (lecture: Session) => {
+    if (!lecture.transcript) {
+      alert("No transcript available for this session.");
+      return;
+    }
     setLoadingId(lecture.id);
     const result = await summarizeLecture(lecture.title, lecture.transcript);
     if (result) {
@@ -51,7 +52,7 @@ const LectureSummaryList: React.FC = () => {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 gap-6">
-        {MOCK_LECTURES.map(lecture => {
+        {lectures.map(lecture => {
           const summary = summaries.find(s => s.lectureId === lecture.id);
           const isLoading = loadingId === lecture.id;
 

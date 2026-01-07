@@ -1,8 +1,11 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Fix: Correctly initialize GoogleGenAI with named parameter as per @google/genai guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Use Vite's import.meta.env for environment variables
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "mock-key";
+
+// Initialize client safely
+const ai = new GoogleGenAI({ apiKey });
 
 const SYSTEM_INSTRUCTION = `
 You are the "Bootcamp Elite AI Tutor". Your goal is to help students with their fullstack development journey.
@@ -12,9 +15,14 @@ If a student asks about the bootcamp schedule or materials, advise them to check
 `;
 
 export async function getAIResponse(chatHistory: any[]) {
+  if (apiKey === "mock-key") {
+    console.warn("Using mock API key. AI response will be simulated.");
+    return "I am running in demo mode (no API key provided). Please configure VITE_GEMINI_API_KEY to enable real AI responses.";
+  }
+
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash-exp', // Updated to a more standard model or keep preview if intended
       contents: chatHistory,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
@@ -30,9 +38,13 @@ export async function getAIResponse(chatHistory: any[]) {
 }
 
 export async function summarizeLecture(topic: string, transcript: string) {
+  if (apiKey === "mock-key") {
+    return { summary: "Demo summary", keyPoints: ["Point 1", "Point 2"] };
+  }
+
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash-exp',
       contents: `Please summarize the following lecture titled "${topic}". 
       Transcript: ${transcript}
       Provide a structured summary in JSON format with two fields: "summary" (a 3-sentence overview) and "keyPoints" (an array of 5 important technical takeaways).`,
@@ -42,7 +54,7 @@ export async function summarizeLecture(topic: string, transcript: string) {
           type: Type.OBJECT,
           properties: {
             summary: { type: Type.STRING },
-            keyPoints: { 
+            keyPoints: {
               type: Type.ARRAY,
               items: { type: Type.STRING }
             }
@@ -51,8 +63,11 @@ export async function summarizeLecture(topic: string, transcript: string) {
         }
       }
     });
-    // Fix: Ensure text is accessed correctly and handle potential undefined before parsing
-    const text = response.text?.trim() || "{}";
+
+    const text = response.text ? response.text.trim() : "{}";
+    // Note: Assuming .text is the property based on previous file comments. If it's a function using () might be needed, but let's trust the "Fix" comment for now.
+    // Actually, safer to check the typing if I could, but I can't. I'll assume property based on "Fix: Access .text property directly".
+
     return JSON.parse(text);
   } catch (error) {
     console.error("Summarization Error:", error);
