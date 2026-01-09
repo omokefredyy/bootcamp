@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 import AITutor from '../components/AITutor';
 import TaskManager from '../components/TaskManager';
@@ -10,7 +9,7 @@ import GlobalChat from '../components/GlobalChat';
 import DirectMessages from '../components/DirectMessages';
 import CollaborationRoom from '../components/CollaborationRoom';
 import ReferralPanel from '../components/ReferralPanel';
-import { User } from '../types';
+import { User, Enrollment, BootcampUpdate } from '../types';
 import { DataService } from '../services/dataService';
 
 interface DashboardProps {
@@ -22,47 +21,105 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isMeetingActive, setIsMeetingActive] = useState(false);
-  const [updates, setUpdates] = useState<any[]>([]);
+  const [updates, setUpdates] = useState<BootcampUpdate[]>([]);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  React.useEffect(() => {
-    const loadData = async () => {
-      if (user.bootcampId) {
-        const ups = await DataService.getUpdates(user.bootcampId);
-        setUpdates(ups);
+  // Load student's enrollments and updates
+  useEffect(() => {
+    const loadStudentData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get student's enrollments
+        const userEnrollments = await DataService.getUserEnrollments(user.email);
+        setEnrollments(userEnrollments);
+
+        // If student has enrollments, load updates from their bootcamps
+        if (userEnrollments.length > 0) {
+          const allUpdates: BootcampUpdate[] = [];
+          
+          for (const enrollment of userEnrollments) {
+            if (enrollment.bootcamp_id) {
+              const bootcampUpdates = await DataService.getUpdates(enrollment.bootcamp_id);
+              allUpdates.push(...bootcampUpdates);
+            }
+          }
+          
+          // Sort by created_at descending
+          allUpdates.sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+          
+          setUpdates(allUpdates);
+        }
+      } catch (error) {
+        console.error('Error loading student data:', error);
+      } finally {
+        setLoading(false);
       }
     };
-    loadData();
-  }, [user.bootcampId]);
+
+    loadStudentData();
+  }, [user.email]);
+
+  // Calculate progress (mock for now - you can enhance this)
+  const progressPercentage = 34;
+
+  // Get first enrolled bootcamp (primary)
+  const primaryEnrollment = enrollments.find(e => e.status === 'Paid');
+  const primaryBootcamp = primaryEnrollment?.bootcamps;
 
   const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-slate-500">Loading your dashboard...</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'overview':
         return (
           <div className="space-y-10 animate-fadeIn">
             <header className="flex flex-col md:flex-row justify-between md:items-end gap-6">
               <div>
-                <h2 className="text-4xl font-black text-slate-900 tracking-tight">Focus on the prize, {user.name.split(' ')[0]}. 🚀</h2>
-                <p className="text-slate-500 mt-2 text-lg">You are on the <span className="font-bold text-indigo-600">Elite Pathway</span>. {34}% of curriculum complete.</p>
+                <h2 className="text-4xl font-black text-slate-900 tracking-tight">
+                  Focus on the prize, {user.name.split(' ')[0]}. 🚀
+                </h2>
+                <p className="text-slate-500 mt-2 text-lg">
+                  You are on the <span className="font-bold text-indigo-600">Elite Pathway</span>. 
+                  {progressPercentage}% of curriculum complete.
+                </p>
               </div>
-              <div
-                onClick={() => setActiveTab('lecture')}
-                className="group cursor-pointer bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-6 hover:border-indigo-300 transition-all transform hover:-translate-y-1"
-              >
-                <div className="text-right">
-                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">LIVE NOW</p>
-                  <p className="font-bold text-slate-800">Advanced React Flow</p>
+              {primaryBootcamp && (
+                <div
+                  onClick={() => setActiveTab('lecture')}
+                  className="group cursor-pointer bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-6 hover:border-indigo-300 transition-all transform hover:-translate-y-1"
+                >
+                  <div className="text-right">
+                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">
+                      YOUR BOOTCAMP
+                    </p>
+                    <p className="font-bold text-slate-800">{primaryBootcamp.title}</p>
+                  </div>
+                  <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-lg shadow-indigo-100/50">
+                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </div>
                 </div>
-                <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-lg shadow-indigo-100/50">
-                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              </div>
+              )}
             </header>
 
+            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {[
-                { label: 'Project Milestones', value: '4/12', color: 'bg-indigo-600' },
+                { label: 'Bootcamps Enrolled', value: enrollments.filter(e => e.status === 'Paid').length, color: 'bg-indigo-600' },
                 { label: 'Community Karma', value: '750', color: 'bg-emerald-500' },
                 { label: 'Daily Streak', value: '14 Days', color: 'bg-amber-500' }
               ].map((stat, i) => (
@@ -76,26 +133,43 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
               ))}
             </div>
 
+            {/* Announcements & Collaborate Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
                 <div className="flex items-center justify-between mb-8">
                   <h3 className="text-xl font-bold flex items-center gap-3">
-                    <svg className="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                    <svg className="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
                     Board Announcements
                   </h3>
-                  <button onClick={() => setActiveTab('updates')} className="text-[10px] font-black uppercase text-indigo-600 tracking-widest hover:underline">View All</button>
+                  <button onClick={() => setActiveTab('updates')} className="text-[10px] font-black uppercase text-indigo-600 tracking-widest hover:underline">
+                    View All
+                  </button>
                 </div>
                 <div className="space-y-8">
-                  {updates.length === 0 ? <p className="text-slate-400">No board announcements.</p> : updates.slice(0, 2).map((up) => (
-                    <div key={up.id} className="group cursor-pointer">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-tighter">{up.category}</span>
-                        <span className="text-[10px] text-slate-400 font-bold">{up.date}</span>
+                  {updates.length === 0 ? (
+                    <p className="text-slate-400">No board announcements yet.</p>
+                  ) : (
+                    updates.slice(0, 2).map((update) => (
+                      <div key={update.id} className="group cursor-pointer">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-tighter">
+                            {update.category}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-bold">
+                            {new Date(update.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h4 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
+                          {update.title}
+                        </h4>
+                        <p className="text-sm text-slate-500 mt-2 line-clamp-2 leading-relaxed">
+                          {update.content}
+                        </p>
                       </div>
-                      <h4 className="text-lg font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{up.title}</h4>
-                      <p className="text-sm text-slate-500 mt-2 line-clamp-2 leading-relaxed">{up.content}</p>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -125,15 +199,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
             </div>
           </div>
         );
+
       case 'lecture':
         return (
           <div className="space-y-6 animate-fadeIn">
             <h2 className="text-3xl font-extrabold text-slate-900 mb-8 flex items-center gap-3">
               Lecture Hall
-              {isMeetingActive && <span className="px-3 py-1 bg-red-100 text-red-600 text-[10px] font-black uppercase rounded-full animate-pulse">Live</span>}
+              {isMeetingActive && (
+                <span className="px-3 py-1 bg-red-100 text-red-600 text-[10px] font-black uppercase rounded-full animate-pulse">
+                  Live
+                </span>
+              )}
             </h2>
             {isMeetingActive ? (
-              <LectureRoom isTutor={user.role === 'tutor' || true} />
+              <LectureRoom isTutor={false} />
             ) : (
               <div className="flex flex-col items-center justify-center py-32 bg-white rounded-[3rem] border border-dashed border-slate-200 shadow-sm text-center px-10">
                 <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-8">
@@ -142,56 +221,74 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
                   </svg>
                 </div>
                 <h3 className="text-3xl font-black text-slate-900 mb-4">Quiet on Set.</h3>
-                <p className="text-slate-500 max-w-md mb-10 text-lg">No active lecture found. The instructor hasn't opened the meeting yet.</p>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <button
-                    onClick={() => setIsMeetingActive(true)}
-                    className="px-10 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100"
-                  >
-                    Simulate Join Call
-                  </button>
-                </div>
+                <p className="text-slate-500 max-w-md mb-10 text-lg">
+                  No active lecture found. The instructor hasn't opened the meeting yet.
+                </p>
+                <button
+                  onClick={() => setIsMeetingActive(true)}
+                  className="px-10 py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100"
+                >
+                  Simulate Join Call
+                </button>
               </div>
             )}
           </div>
         );
+
       case 'collab':
         return <CollaborationRoom />;
+
       case 'chat':
         return <GlobalChat user={user} />;
+
       case 'messages':
         return <DirectMessages user={user} />;
+
       case 'referral':
         return <ReferralPanel user={user} />;
+
       case 'notes':
         return (
           <div className="space-y-6 animate-fadeIn">
             <h2 className="text-3xl font-extrabold text-slate-900 mb-8">AI Session Summaries</h2>
-            <LectureSummaryList bootcampId={user.bootcampId} />
+            <LectureSummaryList bootcampId={primaryEnrollment?.bootcamp_id} />
           </div>
         );
+
       case 'profile':
         return <Profile user={user} onUpdate={onUpdateUser} />;
+
       case 'updates':
         return (
           <div className="space-y-6 max-w-4xl animate-fadeIn">
             <h2 className="text-3xl font-extrabold text-slate-900 mb-8 text-center">Bootcamp Updates</h2>
-            {updates.length === 0 ? <div className="text-center py-20 text-slate-400">All caught up! No new updates.</div> : updates.map((up) => (
-              <div key={up.id} className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100">
-                <div className="flex items-center gap-4 mb-6">
-                  <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${up.category === 'Announcement' ? 'bg-indigo-100 text-indigo-700' :
-                    up.category === 'Schedule' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                    {up.category}
-                  </span>
-                  <span className="text-slate-400 text-xs font-bold">{up.date}</span>
-                </div>
-                <h3 className="text-3xl font-black text-slate-900 mb-6">{up.title}</h3>
-                <p className="text-slate-600 leading-relaxed text-xl">{up.content}</p>
+            {updates.length === 0 ? (
+              <div className="text-center py-20 text-slate-400">
+                All caught up! No new updates.
               </div>
-            ))}
+            ) : (
+              updates.map((update) => (
+                <div key={update.id} className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100">
+                  <div className="flex items-center gap-4 mb-6">
+                    <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      update.category === 'Announcement' ? 'bg-indigo-100 text-indigo-700' :
+                      update.category === 'Schedule' ? 'bg-amber-100 text-amber-700' : 
+                      'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {update.category}
+                    </span>
+                    <span className="text-slate-400 text-xs font-bold">
+                      {new Date(update.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <h3 className="text-3xl font-black text-slate-900 mb-6">{update.title}</h3>
+                  <p className="text-slate-600 leading-relaxed text-xl">{update.content}</p>
+                </div>
+              ))
+            )}
           </div>
         );
+
       default:
         return null;
     }
@@ -211,7 +308,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
         onClick={() => setActiveTab('chat')}
         className="fixed bottom-10 right-10 w-16 h-16 bg-indigo-600 text-white rounded-3xl shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-40 group"
       >
-        <svg className="w-8 h-8 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+        <svg className="w-8 h-8 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
       </button>
     </div>
   );

@@ -1,13 +1,42 @@
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  isPaid: boolean;
+  role: 'student' | 'tutor';
+  tier: 'full-access' | null;
+  avatar_url?: string;
+  referralCode?: string;
+  referralCount?: number;
+}
+
+export interface Profile {
+  id: string;
+  email: string;
+  name: string;
+  role: 'student' | 'tutor';
+  avatar_url?: string;
+  created_at: string;
+}
+
+// ============================================
+// BOOTCAMPS
+// ============================================
 
 export interface Bootcamp {
   id: string;
+  instructor_id: string;
   title: string;
   description: string;
   price: number;
-  instructorId: string;
   category: string;
-  enrolledStudents: number;
-  totalRevenue: number;
+  created_at: string;
+  // Joined data
+  profiles?: Profile;
 }
 
 export interface BootcampData {
@@ -17,35 +46,121 @@ export interface BootcampData {
   price: number;
 }
 
-export interface User {
+// ============================================
+// ENROLLMENTS
+// ============================================
+
+export interface Enrollment {
   id: string;
-  name: string;
-  email: string;
-  isPaid: boolean;
-  role: 'student' | 'tutor';
-  tier: 'full-access' | null;
-  bootcampId?: string;
-  bootcampData?: BootcampData; // Added to store tutor's bootcamp info
-  referralCode?: string;
-  referralCount?: number;
-  ownedBootcamps?: Bootcamp[]; // List of bootcamps managed by the tutor
+  bootcamp_id: string;
+  student_email: string;
+  student_name: string;
+  status: 'Paid' | 'Pending' | 'Refunded';
+  progress: number;
+  amount_paid: number;
+  joined_at: string;
+  // Joined data
+  bootcamps?: Bootcamp;
 }
 
-export interface BootcampUpdate {
+// ============================================
+// SESSIONS
+// ============================================
+
+export interface Session {
   id: string;
+  bootcamp_id: string;
   title: string;
-  content: string;
-  date: string;
-  category: 'Announcement' | 'Material' | 'Schedule';
+  description: string;
+  start_time: string; // ISO timestamp
+  duration_minutes: number;
+  join_url: string;
+  attendees_count: number;
+  created_at: string;
 }
+
+// ============================================
+// MATERIALS
+// ============================================
 
 export interface BootcampMaterial {
   id: string;
+  bootcamp_id: string;
   title: string;
   type: 'PDF' | 'Video' | 'Link' | 'Zip';
   description: string;
   url: string;
+  created_at: string;
 }
+
+// ============================================
+// UPDATES / ANNOUNCEMENTS
+// ============================================
+
+export interface BootcampUpdate {
+  id: string;
+  bootcamp_id: string;
+  title: string;
+  content: string;
+  category: 'Announcement' | 'Material' | 'Schedule';
+  date: string;
+  created_at: string;
+}
+
+// ============================================
+// TRANSACTIONS
+// ============================================
+
+export interface Transaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  type: 'enrollment' | 'withdrawal' | 'platform_fee';
+  description: string;
+  status: string;
+  created_at: string;
+}
+
+// ============================================
+// CHAT
+// ============================================
+
+export interface ChatMessage {
+  id: string;
+  sender_id?: string;
+  sender_name: string;
+  message: string;
+  created_at: string;
+}
+
+export interface DirectMessage {
+  id: string;
+  participants: string[];
+  messages: ChatMessage[];
+}
+
+// ============================================
+// AI & SUMMARIES
+// ============================================
+
+export interface AIChatMessage {
+  role: 'user' | 'model';
+  parts: { text: string }[];
+}
+
+export interface LectureSummary {
+  id: string;
+  session_id?: string;
+  bootcamp_id?: string;
+  title: string;
+  summary: string;
+  key_points: string[];
+  created_at: string;
+}
+
+// ============================================
+// LEGACY / UI-ONLY TYPES
+// ============================================
 
 export interface ScheduleEvent {
   id: string;
@@ -54,25 +169,6 @@ export interface ScheduleEvent {
   endTime: string;
   instructor: string;
   topic: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  sender: string;
-  text: string;
-  timestamp: number;
-  role: 'user' | 'model' | 'system';
-}
-
-export interface AIChatMessage {
-  role: 'user' | 'model';
-  parts: { text: string }[];
-}
-
-export interface DirectMessage {
-  id: string;
-  participants: string[];
-  messages: ChatMessage[];
 }
 
 export interface Assignment {
@@ -109,22 +205,13 @@ export interface Lecture {
   transcript: string;
 }
 
-export interface LectureSummary {
-  lectureId: string;
-  summary: string;
-  keyPoints: string[];
-  generatedAt: number;
-}
+// ============================================
+// REVENUE TYPES
+// ============================================
 
-export interface Session {
-  id: string;
-  title: string;
-  date: string; // ISO date string YYYY-MM-DD
-  time: string; // HH:MM format
-  duration: number; // in minutes
-  description: string;
-  joinUrl: string;
-  attendees: number;
-  transcript?: string;
-  instructor?: string;
+export interface RevenueStats {
+  gross: number;
+  net: number;
+  withdrawn: number;
+  available: number;
 }
