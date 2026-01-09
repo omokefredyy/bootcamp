@@ -7,6 +7,7 @@ interface GlobalChatProps {
 }
 
 import { DataService } from '../services/dataService';
+import { supabase } from '../supabaseClient';
 
 const GlobalChat: React.FC<GlobalChatProps> = ({ user }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -21,14 +22,34 @@ const GlobalChat: React.FC<GlobalChatProps> = ({ user }) => {
         sender: m.sender_name,
         text: m.content,
         timestamp: new Date(m.created_at).getTime(),
-        role: m.sender_id === user.id ? 'user' : 'model' // Simplified role logic
+        role: m.sender_id === user.id ? 'user' : 'model'
       }));
       setMessages(formatted);
     };
     loadMessages();
-    const interval = setInterval(loadMessages, 5000); // Poll for updates
-    return () => clearInterval(interval);
-  }, []);
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel('chat_messages')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+        (payload) => {
+          const newMsg: ChatMessage = {
+            id: payload.new.id,
+            sender: payload.new.sender_name,
+            text: payload.new.content,
+            timestamp: new Date(payload.new.created_at).getTime(),
+            role: payload.new.sender_id === user.id ? 'user' : 'model'
+          };
+          setMessages(prev => [...prev, newMsg]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
