@@ -1,13 +1,19 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Whiteboard from './Whiteboard';
+import { DataService } from '../services/dataService';
+import { supabase } from '../supabaseClient';
+import { User } from '../types';
 
-const CollaborationRoom: React.FC = () => {
+interface CollaborationRoomProps {
+  user: User;
+  roomId?: string;
+}
+
+const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'default-room' }) => {
   const [activeTab, setActiveTab] = useState<'board' | 'tasks' | 'submissions'>('board');
-  const [collabNotes, setCollabNotes] = useState([
-    { user: 'Emily', text: 'Working on the authentication flow.' },
-    { user: 'Alex', text: 'I added the database schema to the board.' }
-  ]);
+  const [collabNotes, setCollabNotes] = useState<Array<{ user: string; text: string; id: string }>>([]);
+  const [chatInput, setChatInput] = useState('');
 
   const [submissionData, setSubmissionData] = useState({
     repoUrl: '',
@@ -15,6 +21,68 @@ const CollaborationRoom: React.FC = () => {
     notes: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load collaboration messages
+  useEffect(() => {
+    const loadMessages = async () => {
+      const data = await DataService.getCollaborationMessages(roomId);
+      const formatted = data.map((m: any) => ({
+        id: m.id,
+        user: m.sender_name,
+        text: m.content
+      }));
+      setCollabNotes(formatted);
+    };
+    loadMessages();
+
+    // Subscribe to real-time collaboration messages
+    const channel = supabase
+      .channel(`collab_${roomId}`)
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'collaboration_messages',
+          filter: `room_id=eq.${roomId}`
+        },
+        (payload) => {
+          const newNote = {
+            id: payload.new.id,
+            user: payload.new.sender_name,
+            text: payload.new.content
+          };
+          setCollabNotes(prev => [...prev, newNote]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId]);
+
+  const handleSendNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    // Optimistic update
+    const tempNote = {
+      id: Date.now().toString(),
+      user: user.name,
+      text: chatInput
+    };
+    setCollabNotes(prev => [...prev, tempNote]);
+    setChatInput('');
+
+    // Send to database
+    await DataService.sendCollaborationMessage({
+      room_id: roomId,
+      sender_id: user.id,
+      sender_name: user.name,
+      content: chatInput,
+      message_type: 'text'
+    });
+  };
 
   const handleSubmission = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,12 +107,11 @@ const CollaborationRoom: React.FC = () => {
             { id: 'tasks', label: 'Project Tasks' },
             { id: 'submissions', label: 'Submit Work' }
           ].map(tab => (
-            <button 
+            <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
-                activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-slate-400 hover:text-slate-600'
-              }`}
+              className={`px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-slate-400 hover:text-slate-600'
+                }`}
             >
               {tab.label}
             </button>
@@ -59,30 +126,51 @@ const CollaborationRoom: React.FC = () => {
               <Whiteboard />
             </div>
             <div className="w-80 flex flex-col gap-6">
-              <div className="flex-1 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm overflow-y-auto">
+              <div className="flex-1 bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm flex flex-col">
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Live Activity Feed</h3>
-                <div className="space-y-6">
-                  {collabNotes.map((n, i) => (
-                    <div key={i} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 animate-fadeIn">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{n.user}</p>
+                <div className="flex-1 space-y-6 overflow-y-auto mb-4">
+                  {collabNotes.length === 0 ? (
+                    <p className="text-slate-400 text-sm text-center py-8">No messages yet. Start the conversation!</p>
+                  ) : (
+                    collabNotes.map((n) => (
+                      <div key={n.id} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 animate-fadeIn">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                          <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{n.user}</p>
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed font-medium">{n.text}</p>
                       </div>
-                      <p className="text-sm text-slate-700 leading-relaxed font-medium">{n.text}</p>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
+                <form onSubmit={handleSendNote} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                  </button>
+                </form>
               </div>
               <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
                 <div className="relative z-10">
                   <h4 className="font-black mb-2 text-xl tracking-tight">Real-time Sync</h4>
                   <p className="text-slate-400 text-xs mb-6 leading-relaxed">You are collaborating in a low-latency environment. Every stroke is synced.</p>
                   <div className="flex -space-x-3">
-                     {[1,2,3,4].map(i => (
-                       <div key={i} className="w-10 h-10 rounded-2xl border-4 border-slate-900 bg-indigo-500 flex items-center justify-center text-[10px] font-black">
-                         {['A', 'E', 'S', 'J'][i-1]}
-                       </div>
-                     ))}
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="w-10 h-10 rounded-2xl border-4 border-slate-900 bg-indigo-500 flex items-center justify-center text-[10px] font-black">
+                        {['A', 'E', 'S', 'J'][i - 1]}
+                      </div>
+                    ))}
                   </div>
                 </div>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl group-hover:scale-150 transition-transform"></div>
@@ -106,10 +194,9 @@ const CollaborationRoom: React.FC = () => {
               ].map((item, i) => (
                 <div key={i} className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 hover:border-indigo-200 transition-all group">
                   <div className="flex justify-between items-start mb-4">
-                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                      item.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
+                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${item.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
                       item.status === 'In Progress' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
-                    }`}>
+                      }`}>
                       {item.status}
                     </span>
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned: {item.owner}</span>
@@ -137,22 +224,22 @@ const CollaborationRoom: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GitHub Repository URL</label>
-                    <input 
+                    <input
                       required
                       type="url"
                       value={submissionData.repoUrl}
-                      onChange={e => setSubmissionData({...submissionData, repoUrl: e.target.value})}
+                      onChange={e => setSubmissionData({ ...submissionData, repoUrl: e.target.value })}
                       placeholder="https://github.com/..."
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-600 transition-all outline-none text-sm font-medium"
                     />
                   </div>
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Live Demo URL</label>
-                    <input 
+                    <input
                       required
                       type="url"
                       value={submissionData.demoUrl}
-                      onChange={e => setSubmissionData({...submissionData, demoUrl: e.target.value})}
+                      onChange={e => setSubmissionData({ ...submissionData, demoUrl: e.target.value })}
                       placeholder="https://project.vercel.app"
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-600 transition-all outline-none text-sm font-medium"
                     />
@@ -161,16 +248,16 @@ const CollaborationRoom: React.FC = () => {
 
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Self-Reflection & Notes</label>
-                  <textarea 
+                  <textarea
                     rows={5}
                     value={submissionData.notes}
-                    onChange={e => setSubmissionData({...submissionData, notes: e.target.value})}
+                    onChange={e => setSubmissionData({ ...submissionData, notes: e.target.value })}
                     placeholder="Tell us about your challenges and what you're most proud of in this project..."
                     className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-600 transition-all outline-none text-sm font-medium resize-none"
                   />
                 </div>
 
-                <button 
+                <button
                   type="submit"
                   disabled={isSubmitting}
                   className="w-full py-5 bg-indigo-600 text-white font-black uppercase tracking-widest rounded-[2rem] hover:bg-indigo-700 shadow-2xl shadow-indigo-200 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
@@ -190,13 +277,13 @@ const CollaborationRoom: React.FC = () => {
               </form>
 
               <div className="mt-12 p-8 bg-indigo-50 rounded-[2.5rem] border border-indigo-100 flex items-center gap-6">
-                 <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-                   <span className="text-3xl">🏆</span>
-                 </div>
-                 <div>
-                   <h4 className="font-bold text-indigo-900">Elite Certification Track</h4>
-                   <p className="text-sm text-indigo-700 font-medium">Successful submission puts you on track for the engineering certificate and priority hire pool.</p>
-                 </div>
+                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+                  <span className="text-3xl">🏆</span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-indigo-900">Elite Certification Track</h4>
+                  <p className="text-sm text-indigo-700 font-medium">Successful submission puts you on track for the engineering certificate and priority hire pool.</p>
+                </div>
               </div>
             </div>
           </div>

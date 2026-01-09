@@ -84,5 +84,64 @@ export const DataService = {
         const { data, error } = await supabase.from('chat_messages').insert([message]).select();
         if (error) throw error;
         return data[0];
+    },
+
+    // DIRECT MESSAGES
+    async getDirectMessages(userId: string, contactId: string) {
+        if (!checkEnv()) return [];
+        const { data } = await supabase
+            .from('direct_messages')
+            .select('*')
+            .or(`and(sender_id.eq.${userId},receiver_id.eq.${contactId}),and(sender_id.eq.${contactId},receiver_id.eq.${userId})`)
+            .order('created_at', { ascending: true });
+        return data || [];
+    },
+
+    async sendDirectMessage(message: any) {
+        if (!checkEnv()) return null;
+        const { data, error } = await supabase.from('direct_messages').insert([message]).select();
+        if (error) throw error;
+        return data[0];
+    },
+
+    // COLLABORATION
+    async getCollaborationRooms() {
+        if (!checkEnv()) return [];
+        const { data } = await supabase.from('collaboration_rooms').select('*');
+        return data || [];
+    },
+
+    async createCollaborationRoom(room: any) {
+        if (!checkEnv()) return null;
+        const { data, error } = await supabase.from('collaboration_rooms').insert([room]).select();
+        if (error) throw error;
+        return data[0];
+    },
+
+    async getCollaborationMessages(roomId: string) {
+        if (!checkEnv()) return [];
+        const { data } = await supabase
+            .from('collaboration_messages')
+            .select('*')
+            .eq('room_id', roomId)
+            .order('created_at', { ascending: true });
+        return data || [];
+    },
+
+    async sendCollaborationMessage(message: any) {
+        if (!checkEnv()) return null;
+        const { data, error } = await supabase.from('collaboration_messages').insert([message]).select();
+        if (error) throw error;
+        return data[0];
+    },
+
+    async joinCollaborationRoom(roomId: string, userId: string) {
+        if (!checkEnv()) return null;
+        const { data, error } = await supabase
+            .from('collaboration_room_members')
+            .insert([{ room_id: roomId, user_id: userId }])
+            .select();
+        if (error) throw error;
+        return data[0];
     }
 };

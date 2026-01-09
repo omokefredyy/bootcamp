@@ -1,6 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, ChatMessage } from '../types';
+import { DataService } from '../services/dataService';
+import { supabase } from '../supabaseClient';
 
 interface DMProps {
   user: User;
@@ -8,20 +10,65 @@ interface DMProps {
 
 const DirectMessages: React.FC<DMProps> = ({ user }) => {
   const [activeContact, setActiveContact] = useState({ name: 'Sarah Drasner (Tutor)', id: 't1' });
-  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({
-    't1': [
-      { id: '1', sender: 'Sarah Drasner (Tutor)', text: "Hey! Just saw your question about the final project. What's up?", timestamp: Date.now() - 3600000, role: 'model' },
-      { id: '2', sender: user.name, text: 'Hi Sarah! I was wondering if I can use Postgraphile for the backend.', timestamp: Date.now() - 3000000, role: 'user' },
-      { id: '3', sender: 'Sarah Drasner (Tutor)', text: 'Definitely! That would be a great challenge for the Elite tier.', timestamp: Date.now() - 2800000, role: 'model' },
-    ]
-  });
+  const [messages, setMessages] = useState<Record<string, ChatMessage[]>>({});
   const [input, setInput] = useState('');
+  const [contacts] = useState([
+    { name: 'Sarah Drasner (Tutor)', id: 't1', online: true },
+    { name: 'Dan Abramov (Tutor)', id: 't2', online: false },
+    { name: 'Admissions Support', id: 't3', online: true },
+  ]);
 
-  const handleSend = (e: React.FormEvent) => {
+  // Load messages for active contact
+  useEffect(() => {
+    const loadMessages = async () => {
+      const data = await DataService.getDirectMessages(user.id, activeContact.id);
+      const formatted: ChatMessage[] = data.map((m: any) => ({
+        id: m.id,
+        sender: m.sender_id === user.id ? user.name : m.sender_name,
+        text: m.content,
+        timestamp: new Date(m.created_at).getTime(),
+        role: m.sender_id === user.id ? 'user' : 'model'
+      }));
+      setMessages(prev => ({ ...prev, [activeContact.id]: formatted }));
+    };
+    loadMessages();
+
+    // Subscribe to real-time updates for this conversation
+    const channel = supabase
+      .channel(`dm_${user.id}_${activeContact.id}`)
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'direct_messages',
+          filter: `or(and(sender_id.eq.${user.id},receiver_id.eq.${activeContact.id}),and(sender_id.eq.${activeContact.id},receiver_id.eq.${user.id}))`
+        },
+        (payload) => {
+          const newMsg: ChatMessage = {
+            id: payload.new.id,
+            sender: payload.new.sender_id === user.id ? user.name : payload.new.sender_name,
+            text: payload.new.content,
+            timestamp: new Date(payload.new.created_at).getTime(),
+            role: payload.new.sender_id === user.id ? 'user' : 'model'
+          };
+          setMessages(prev => ({
+            ...prev,
+            [activeContact.id]: [...(prev[activeContact.id] || []), newMsg]
+          }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeContact.id, user.id, user.name]);
+
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const newMsg: ChatMessage = {
+    const newMsgDisplay: ChatMessage = {
       id: Date.now().toString(),
       sender: user.name,
       text: input,
@@ -29,26 +76,21 @@ const DirectMessages: React.FC<DMProps> = ({ user }) => {
       role: 'user'
     };
 
-    setMessages({
-      ...messages,
-      [activeContact.id]: [...(messages[activeContact.id] || []), newMsg]
-    });
+    // Optimistic update
+    setMessages(prev => ({
+      ...prev,
+      [activeContact.id]: [...(prev[activeContact.id] || []), newMsgDisplay]
+    }));
     setInput('');
 
-    // Simulated Tutor Reply
-    setTimeout(() => {
-      const reply: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: activeContact.name,
-        text: "I'll get back to you on that as soon as I finish the live session!",
-        timestamp: Date.now(),
-        role: 'model'
-      };
-      setMessages(prev => ({
-        ...prev,
-        [activeContact.id]: [...(prev[activeContact.id] || []), reply]
-      }));
-    }, 2000);
+    // Send to database
+    await DataService.sendDirectMessage({
+      sender_id: user.id,
+      receiver_id: activeContact.id,
+      sender_name: user.name,
+      receiver_name: activeContact.name,
+      content: input
+    });
   };
 
   return (
@@ -67,9 +109,8 @@ const DirectMessages: React.FC<DMProps> = ({ user }) => {
             <button
               key={contact.id}
               onClick={() => setActiveContact(contact)}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
-                activeContact.id === contact.id ? 'bg-white shadow-sm border border-slate-100' : 'hover:bg-white/50'
-              }`}
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeContact.id === contact.id ? 'bg-white shadow-sm border border-slate-100' : 'hover:bg-white/50'
+                }`}
             >
               <div className="relative">
                 <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
@@ -105,11 +146,10 @@ const DirectMessages: React.FC<DMProps> = ({ user }) => {
         <div className="flex-1 overflow-y-auto p-8 space-y-6">
           {(messages[activeContact.id] || []).map((m) => (
             <div key={m.id} className={`flex flex-col ${m.sender === user.name ? 'items-end' : 'items-start'}`}>
-              <div className={`max-w-[60%] px-5 py-3 rounded-2xl text-sm ${
-                m.sender === user.name 
-                  ? 'bg-slate-900 text-white rounded-tr-none' 
+              <div className={`max-w-[60%] px-5 py-3 rounded-2xl text-sm ${m.sender === user.name
+                  ? 'bg-slate-900 text-white rounded-tr-none'
                   : 'bg-indigo-50 text-indigo-900 rounded-tl-none border border-indigo-100'
-              }`}>
+                }`}>
                 {m.text}
               </div>
               <span className="text-[10px] text-slate-300 mt-2">
