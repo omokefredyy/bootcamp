@@ -1,101 +1,65 @@
-import AgoraRTC, {
-    IAgoraRTCClient,
-    IAgoraRTCRemoteUser,
-    ICameraVideoTrack,
-    IMicrophoneAudioTrack,
-} from 'agora-rtc-sdk-ng';
-
-// Agora configuration
-const APP_ID = import.meta.env.VITE_AGORA_APP_ID || '';
+import Video, { Room, LocalVideoTrack, LocalAudioTrack, RemoteParticipant } from 'twilio-video';
 
 export interface VideoCallConfig {
-    channelName: string;
-    token?: string;
-    uid?: string | number;
+    roomName: string;
+    token: string; // Tokens should be generated via a backend/Edge function
 }
 
 class VideoService {
-    private client: IAgoraRTCClient | null = null;
-    private localAudioTrack: IMicrophoneAudioTrack | null = null;
-    private localVideoTrack: ICameraVideoTrack | null = null;
+    private room: Room | null = null;
+    private localVideoTrack: LocalVideoTrack | null = null;
+    private localAudioTrack: LocalAudioTrack | null = null;
 
-    async joinCall(config: VideoCallConfig): Promise<{
-        client: IAgoraRTCClient;
-        localAudioTrack: IMicrophoneAudioTrack;
-        localVideoTrack: ICameraVideoTrack;
-    }> {
-        if (!APP_ID) {
-            throw new Error('Agora App ID is not configured. Please add VITE_AGORA_APP_ID to your .env file.');
+    async joinCall(config: VideoCallConfig): Promise<Room> {
+        try {
+            // Connect to the Twilio Room
+            this.room = await Video.connect(config.token, {
+                name: config.roomName,
+                audio: true,
+                video: { width: 640 }
+            });
+
+            // Capture local tracks for easier reference in UI
+            this.localAudioTrack = Array.from(this.room.localParticipant.audioTracks.values())[0]?.track as LocalAudioTrack;
+            this.localVideoTrack = Array.from(this.room.localParticipant.videoTracks.values())[0]?.track as LocalVideoTrack;
+
+            return this.room;
+        } catch (error) {
+            console.error('Twilio Video Connection Error:', error);
+            throw error;
         }
-
-        // Create Agora client
-        this.client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-
-        // Create local tracks
-        [this.localAudioTrack, this.localVideoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-
-        // Join the channel
-        await this.client.join(
-            APP_ID,
-            config.channelName,
-            config.token || null,
-            config.uid || null
-        );
-
-        // Publish local tracks
-        await this.client.publish([this.localAudioTrack, this.localVideoTrack]);
-
-        return {
-            client: this.client,
-            localAudioTrack: this.localAudioTrack,
-            localVideoTrack: this.localVideoTrack,
-        };
     }
 
     async leaveCall(): Promise<void> {
-        // Close local tracks
+        if (this.room) {
+            this.room.disconnect();
+            this.room = null;
+        }
+        this.localVideoTrack = null;
+        this.localAudioTrack = null;
+    }
+
+    toggleAudio(enabled: boolean): void {
         if (this.localAudioTrack) {
-            this.localAudioTrack.close();
-            this.localAudioTrack = null;
+            if (enabled) this.localAudioTrack.enable();
+            else this.localAudioTrack.disable();
         }
+    }
+
+    toggleVideo(enabled: boolean): void {
         if (this.localVideoTrack) {
-            this.localVideoTrack.close();
-            this.localVideoTrack = null;
-        }
-
-        // Leave the channel
-        if (this.client) {
-            await this.client.leave();
-            this.client = null;
+            if (enabled) this.localVideoTrack.enable();
+            else this.localVideoTrack.disable();
         }
     }
 
-    async toggleAudio(enabled: boolean): Promise<void> {
-        if (this.localAudioTrack) {
-            await this.localAudioTrack.setEnabled(enabled);
-        }
+    // Helper to handle participant events
+    onParticipantConnected(room: Room, callback: (participant: RemoteParticipant) => void) {
+        room.on('participantConnected', callback);
     }
 
-    async toggleVideo(enabled: boolean): Promise<void> {
-        if (this.localVideoTrack) {
-            await this.localVideoTrack.setEnabled(enabled);
-        }
-    }
-
-    subscribeToRemoteUsers(
-        onUserJoined: (user: IAgoraRTCRemoteUser) => void,
-        onUserLeft: (user: IAgoraRTCRemoteUser) => void
-    ): void {
-        if (!this.client) return;
-
-        this.client.on('user-published', async (user, mediaType) => {
-            await this.client!.subscribe(user, mediaType);
-            onUserJoined(user);
-        });
-
-        this.client.on('user-unpublished', (user) => {
-            onUserLeft(user);
-        });
+    onParticipantDisconnected(room: Room, callback: (participant: RemoteParticipant) => void) {
+        room.on('participantDisconnected', callback);
     }
 }
 

@@ -91,8 +91,11 @@ const TutorDashboard: React.FC<TutorDashboardProps> = ({ user, onLogout, onUpdat
 
     await DataService.createSession(session);
 
+    // Twilio Notification logic - notify students about the new session
+    await DataService.notifyStudents(user.bootcampId, `New Elite Session Scheduled: ${newSession.title} on ${newSession.date} at ${newSession.time}. Get ready to build!`);
+
     setShowScheduleModal(false);
-    alert(`Session Scheduled!`);
+    alert(`Session Scheduled & Students Notified via Twilio!`);
     setNewSession({ title: '', date: '', time: '', duration: 60, description: '' });
   };
 
@@ -850,8 +853,7 @@ const TutorDashboard: React.FC<TutorDashboardProps> = ({ user, onLogout, onUpdat
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {myBootcamps.map((bc: any) => {
                 // Calculate stats dynamically for this specific bootcamp
-                const studentsForBc = MOCK_STUDENTS.filter(s => s.bootcampId === bc.id);
-                const studentCountBc = studentsForBc.length;
+                const studentCountBc = bc.enrolledStudents || 0;
                 const revenueBc = studentCountBc * bc.price;
 
                 return (

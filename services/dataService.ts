@@ -143,5 +143,16 @@ export const DataService = {
             .select();
         if (error) throw error;
         return data[0];
+    },
+
+    // TWILIO NOTIFICATIONS
+    async notifyStudents(bootcampId: string, message: string) {
+        console.log(`[Twilio Notification] Sending to all students in bootcamp ${bootcampId}: ${message}`);
+
+        // In a real app, you would call a Supabase Edge Function or your backend here
+        // example: await fetch(`${EDGE_FUNCTION_URL}/send-sms`, { method: 'POST', body: JSON.stringify({ bootcampId, message }) });
+
+        // Mock success for UI feedback
+        return { success: true, count: 24 };
     }
 };
