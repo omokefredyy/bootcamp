@@ -20,11 +20,7 @@ const App: React.FC = () => {
       if (parsed.role === 'tutor') {
         setView('tutor_dashboard');
       } else {
-        if (parsed.isPaid) {
-          setView('dashboard');
-        } else {
-          setView('paywall');
-        }
+        setView('dashboard');
       }
     }
   }, []);
@@ -36,22 +32,20 @@ const App: React.FC = () => {
   const handleAuthComplete = (newUser: User) => {
     setUser(newUser);
     localStorage.setItem('bootcamp_auth', JSON.stringify(newUser));
-    
-    // Tutors go straight to their dashboard - NO PAYWALL for instructors
+
     if (newUser.role === 'tutor') {
       setView('tutor_dashboard');
     } else {
-      // Students go to the paywall unless already paid (mock)
-      setView('paywall');
+      setView('dashboard');
     }
   };
 
   const handlePaymentSuccess = () => {
     if (!user) return;
-    const updatedUser: User = { 
-      ...user, 
-      isPaid: true, 
-      tier: 'full-access' 
+    const updatedUser: User = {
+      ...user,
+      isPaid: true,
+      tier: 'full-access'
     };
     setUser(updatedUser);
     localStorage.setItem('bootcamp_auth', JSON.stringify(updatedUser));
@@ -73,27 +67,27 @@ const App: React.FC = () => {
     <div className="antialiased selection:bg-indigo-100">
       {view === 'landing' && <Landing onStart={handleStart} />}
       {view === 'auth' && (
-        <Auth 
-          onAuthComplete={handleAuthComplete} 
-          onBack={() => setView('landing')} 
+        <Auth
+          onAuthComplete={handleAuthComplete}
+          onBack={() => setView('landing')}
         />
       )}
       {view === 'paywall' && (
-        <Paywall 
-          onSuccess={handlePaymentSuccess} 
-          onCancel={() => setView('landing')} 
+        <Paywall
+          onSuccess={handlePaymentSuccess}
+          onCancel={() => setView('landing')}
         />
       )}
       {view === 'dashboard' && user && (
-        <Dashboard 
-          user={user} 
-          onLogout={handleLogout} 
+        <Dashboard
+          user={user}
+          onLogout={handleLogout}
           onUpdateUser={handleUpdateUser}
         />
       )}
       {view === 'tutor_dashboard' && user && (
-        <TutorDashboard 
-          user={user} 
+        <TutorDashboard
+          user={user}
           onLogout={handleLogout}
           onUpdateUser={handleUpdateUser}
         />

@@ -11,10 +11,46 @@ export const DataService = {
         return data || [];
     },
 
+    async getAllBootcamps() {
+        if (!checkEnv()) return [];
+        const { data } = await supabase.from('bootcamps').select('*').order('created_at', { ascending: false });
+        return data || [];
+    },
+
     async createBootcamp(bootcamp: any) {
         if (!checkEnv()) return null;
         const { data, error } = await supabase.from('bootcamps').insert([bootcamp]).select();
         if (error) throw error;
+        return data[0];
+    },
+
+    async registerForBootcamp(bootcampId: string, studentId: string, studentName: string, studentEmail: string, amount: number) {
+        if (!checkEnv()) return null;
+
+        // Create enrollment
+        const { data, error } = await supabase.from('enrollments').insert([{
+            bootcamp_id: bootcampId,
+            student_id: studentId, // Need to ensure student_id column exists or use email
+            student_name: studentName,
+            student_email: studentEmail,
+            status: 'Paid',
+            amount_paid: amount
+        }]).select();
+
+        if (error) throw error;
+
+        // Also create a transaction for the instructor
+        // (Fetch instructor_id first)
+        const { data: bc } = await supabase.from('bootcamps').select('instructor_id').eq('id', bootcampId).single();
+        if (bc) {
+            await supabase.from('transactions').insert([{
+                user_id: bc.instructor_id,
+                amount: amount * 0.9, // 90% goes to instructor
+                type: 'enrollment',
+                description: `Student enrollment: ${studentName}`
+            }]);
+        }
+
         return data[0];
     },
 

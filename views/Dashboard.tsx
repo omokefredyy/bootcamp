@@ -9,8 +9,10 @@ import Profile from '../components/Profile';
 import GlobalChat from '../components/GlobalChat';
 import DirectMessages from '../components/DirectMessages';
 import CollaborationRoom from '../components/CollaborationRoom';
+import Marketplace from '../components/Marketplace';
 import ReferralPanel from '../components/ReferralPanel';
-import { User } from '../types';
+import Paywall from './Paywall';
+import { User, Bootcamp } from '../types';
 import { DataService } from '../services/dataService';
 
 interface DashboardProps {
@@ -20,9 +22,10 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(user.bootcampId ? 'overview' : 'marketplace');
   const [isMeetingActive, setIsMeetingActive] = useState(false);
   const [updates, setUpdates] = useState<any[]>([]);
+  const [showCheckout, setShowCheckout] = useState<Bootcamp | null>(null);
 
   React.useEffect(() => {
     const loadData = async () => {
@@ -33,6 +36,34 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
     };
     loadData();
   }, [user.bootcampId]);
+
+  const handleEnrollment = async () => {
+    if (!showCheckout) return;
+    try {
+      await DataService.registerForBootcamp(
+        showCheckout.id,
+        user.id,
+        user.name,
+        user.email,
+        showCheckout.price
+      );
+
+      const updatedUser: User = {
+        ...user,
+        bootcampId: showCheckout.id,
+        isPaid: true,
+        enrolledBootcamps: [...(user.enrolledBootcamps || []), showCheckout]
+      };
+
+      onUpdateUser(updatedUser);
+      setShowCheckout(null);
+      setActiveTab('overview');
+      alert(`Successfully enrolled in ${showCheckout.title}!`);
+    } catch (err) {
+      console.error(err);
+      alert("Registration failed. Please try again.");
+    }
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -172,7 +203,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
         );
       case 'profile':
         return <Profile user={user} onUpdate={onUpdateUser} />;
+      case 'marketplace':
+        return <Marketplace user={user} onRegister={(bc) => setShowCheckout(bc)} />;
       case 'updates':
+        if (!user.bootcampId) return <div className="text-center py-20">Please enroll in a bootcamp to see updates.</div>;
         return (
           <div className="space-y-6 max-w-4xl animate-fadeIn">
             <h2 className="text-3xl font-extrabold text-slate-900 mb-8 text-center">Bootcamp Updates</h2>
@@ -205,6 +239,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
           {renderContent()}
         </div>
       </main>
+
+      {/* Checkout Modal */}
+      {showCheckout && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-white rounded-[3.5rem] shadow-2xl relative overflow-hidden">
+            <button
+              onClick={() => setShowCheckout(null)}
+              className="absolute top-8 right-8 w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all z-20"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <Paywall
+              onSuccess={handleEnrollment}
+              onCancel={() => setShowCheckout(null)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Floating AI Assistant Trigger */}
       <button

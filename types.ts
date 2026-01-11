@@ -29,6 +29,7 @@ export interface User {
   referralCode?: string;
   referralCount?: number;
   ownedBootcamps?: Bootcamp[]; // List of bootcamps managed by the tutor
+  enrolledBootcamps?: Bootcamp[]; // List of bootcamps a student is enrolled in
 }
 
 export interface BootcampUpdate {
