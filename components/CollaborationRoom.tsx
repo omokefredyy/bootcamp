@@ -12,9 +12,10 @@ import { auditAssignment } from '../services/gemini';
 interface CollaborationRoomProps {
   user: User;
   roomId?: string;
+  category?: string;
 }
 
-const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'default-room' }) => {
+const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'default-room', category = 'General' }) => {
   const [activeTab, setActiveTab] = useState<'board' | 'tasks' | 'submissions'>('board');
   const [collabNotes, setCollabNotes] = useState<Array<{ user: string; text: string; id: string }>>([]);
   const [chatInput, setChatInput] = useState('');
@@ -121,7 +122,7 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
       setIsAuditing(true);
 
       // 2. Trigger AI Pre-flight Audit
-      const audit = await auditAssignment(submissionData.repoUrl, submissionData.notes);
+      const audit = await auditAssignment(submissionData.repoUrl, submissionData.notes, category);
 
       if (audit) {
         const updated = await DataService.updateSubmission(sub.id, {
@@ -269,7 +270,7 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
                         )}
                         <div className="flex justify-between items-start mb-4">
                           <span className={`text-[8px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${item.priority === 'Critical' ? 'bg-red-50 text-red-600' :
-                              item.priority === 'High' ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-500'
+                            item.priority === 'High' ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-500'
                             }`}>
                             {item.priority} Priority
                           </span>
@@ -346,24 +347,23 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
               <form onSubmit={handleSubmission} className="space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GitHub Repository URL</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Primary Project Link</label>
                     <input
                       required
                       type="url"
                       value={submissionData.repoUrl}
                       onChange={e => setSubmissionData({ ...submissionData, repoUrl: e.target.value })}
-                      placeholder="https://github.com/..."
+                      placeholder="Link to your work (Behance, GitHub, Drive...)"
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-600 transition-all outline-none text-sm font-medium"
                     />
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Live Demo URL</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">External Preview (Optional)</label>
                     <input
-                      required
                       type="url"
                       value={submissionData.demoUrl}
                       onChange={e => setSubmissionData({ ...submissionData, demoUrl: e.target.value })}
-                      placeholder="https://project.vercel.app"
+                      placeholder="Live link, demo, or presentation URL"
                       className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-600 transition-all outline-none text-sm font-medium"
                     />
                   </div>
@@ -393,7 +393,7 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
                   ) : (
                     <>
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      {currentSubmission ? 'Push Updated Version' : 'Push Final Build'}
+                      {currentSubmission ? 'Update Submission' : 'Confirm Submission'}
                     </>
                   )}
                 </button>

@@ -116,29 +116,35 @@ export async function analyzeStruggle(chatContext: string) {
   }
 }
 
-export async function auditAssignment(repoUrl: string, notes: string) {
+export async function auditAssignment(repoUrl: string, notes: string, bootcampCategory: string = "General") {
   if (apiKey === "mock-key") {
     return {
-      feedback: "Your repository looks organized. Ensure you have a clear README and license for professional standard.",
+      feedback: `Your ${bootcampCategory} submission looks professional. Ensure your presentation is clean and all links are accessible.`,
       scoreMeter: 75,
-      improvements: ["Add a LICENSE file", "Document the API endpoints in README"]
+      improvements: ["Add more detailed documentation", "Check for link accessibility", "Improve visual formatting"]
     };
   }
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash-exp',
-      contents: `You are an Elite Technical Auditor. Audit the following student submission for a bootcamp project.
+      contents: `You are an Elite Professional Auditor for a ${bootcampCategory} academy. 
+      Audit the following student project submission.
       
-      GitHub Repo: ${repoUrl}
-      Student Notes: ${notes}
+      Project Link/Resource: ${repoUrl}
+      Student Context: ${notes}
+      
+      Professional Standards to consider for ${bootcampCategory}:
+      - Technical accuracy and depth.
+      - Quality of documentation/presentation.
+      - Professional 'Readiness' for the industry.
       
       Provide structural and professional feedback on what they can improve before a human tutor reviews it.
       
       Respond in JSON format with:
-      1. "feedback": string (2-3 sentences of overall tone and professional advice)
+      1. "feedback": string (2-3 sentences of overall tone and subject-specific advice)
       2. "scoreMeter": number (0-100 based on 'readiness' for professional review)
-      3. "improvements": Array<string> (at least 3 specific, actionable points)`,
+      3. "improvements": Array<string> (at least 3 specific, actionable points tailored to ${bootcampCategory})`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {

@@ -7,10 +7,10 @@ interface SubmissionJourneyProps {
 
 const SubmissionJourney: React.FC<SubmissionJourneyProps> = ({ status, scoreMeter }) => {
     const steps = [
-        { id: 'pending', label: 'Pushed', subtext: 'Received by System', icon: '🚀' },
+        { id: 'pending', label: 'Submitted', subtext: 'Received by Academy', icon: '📤' },
         { id: 'ai_audited', label: 'AI Audit', subtext: 'Pre-flight Feedback', icon: '🤖' },
         { id: 'reviewed', label: 'Evaluation', subtext: 'Tutor Review', icon: '👨‍🏫' },
-        { id: 'completed', label: 'Certified', subtext: 'Grade Released', icon: '🏆' }
+        { id: 'completed', label: 'Certified', subtext: 'Result Released', icon: '🏆' }
     ];
 
     const currentStepIndex = steps.findIndex(s => s.id === status);
