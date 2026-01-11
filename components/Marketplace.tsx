@@ -42,7 +42,7 @@ const Marketplace: React.FC<MarketplaceProps> = ({ user, onRegister }) => {
                 <div className="relative w-full md:w-96">
                     <input
                         type="text"
-                        placeholder="Search category, instructor or tech..."
+                        placeholder="Search category, instructor or expertise..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full px-8 py-4 bg-white border border-slate-100 rounded-[2rem] shadow-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-600 transition-all outline-none pl-14 font-medium"

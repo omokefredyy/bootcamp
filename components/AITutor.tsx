@@ -6,7 +6,7 @@ import { AIChatMessage } from '../types';
 const AITutor: React.FC = () => {
   // Fix: Use AIChatMessage instead of ChatMessage to correctly reflect the Gemini content structure (role and parts)
   const [messages, setMessages] = useState<AIChatMessage[]>([
-    { role: 'model', parts: [{ text: "Hi there! I'm your Bootcamp AI Tutor. How can I help you with your coding journey today?" }] }
+    { role: 'model', parts: [{ text: "Hi there! I'm your Bootcamp AI Tutor. How can I help you with your learning journey today?" }] }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +29,7 @@ const AITutor: React.FC = () => {
 
     const history = messages.concat(userMsg);
     const aiText = await getAIResponse(history);
-    
+
     setMessages(prev => [...prev, { role: 'model', parts: [{ text: aiText || "I'm having a bit of a brain fog. Try again?" }] }]);
     setIsLoading(false);
   };
@@ -53,11 +53,10 @@ const AITutor: React.FC = () => {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/50">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm ${
-              m.role === 'user' 
-                ? 'bg-indigo-600 text-white rounded-tr-none shadow-md shadow-indigo-100' 
+            <div className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm ${m.role === 'user'
+                ? 'bg-indigo-600 text-white rounded-tr-none shadow-md shadow-indigo-100'
                 : 'bg-white text-slate-700 rounded-tl-none shadow-sm border border-slate-100'
-            }`}>
+              }`}>
               {m.parts[0].text}
             </div>
           </div>

@@ -231,7 +231,11 @@ const TutorDashboard: React.FC<TutorDashboardProps> = ({ user, onLogout, onUpdat
               >
                 <option>Web Development</option>
                 <option>Data Science</option>
-                <option>Mobile Apps</option>
+                <option>UI/UX Design</option>
+                <option>Digital Marketing</option>
+                <option>Music Production</option>
+                <option>Business & Strategy</option>
+                <option>Creative Arts</option>
                 <option>Cybersecurity</option>
               </select>
             </div>

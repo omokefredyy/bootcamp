@@ -8,10 +8,10 @@ const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "mock-key";
 const ai = new GoogleGenAI({ apiKey });
 
 const SYSTEM_INSTRUCTION = `
-You are the "Bootcamp Elite AI Tutor". Your goal is to help students with their fullstack development journey.
-You are knowledgeable about React, Node.js, TypeScript, and software engineering best practices.
+You are the "Bootcamp Elite AI Tutor". Your goal is to help students with their learning journey within their specific academy.
+You are a versatile expert capable of providing high-level professional advice, technical breakdowns, and creative feedback across various disciplines.
 Keep your responses encouraging, concise, and professional. 
-If a student asks about the bootcamp schedule or materials, advise them to check the relevant tabs in the dashboard, but you can also provide general technical help.
+If a student asks about the bootcamp schedule or materials, advise them to check the relevant tabs in the dashboard, but you can also provide general expertise on their subject.
 `;
 
 export async function getAIResponse(chatHistory: any[]) {
@@ -47,7 +47,7 @@ export async function summarizeLecture(topic: string, transcript: string) {
       model: 'gemini-2.0-flash-exp',
       contents: `Please summarize the following lecture titled "${topic}". 
       Transcript: ${transcript}
-      Provide a structured summary in JSON format with two fields: "summary" (a 3-sentence overview) and "keyPoints" (an array of 5 important technical takeaways).`,
+      Provide a structured summary in JSON format with two fields: "summary" (a 3-sentence overview) and "keyPoints" (an array of 5 important professional takeaways).`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
