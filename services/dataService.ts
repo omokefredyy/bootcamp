@@ -190,5 +190,69 @@ export const DataService = {
 
         // Mock success for UI feedback
         return { success: true, count: 24 };
+    },
+
+    // LIGHTNING SPRINTS (AI + CAL.COM)
+    async setSprintReadiness(userId: string, isReady: boolean) {
+        if (!checkEnv()) return null;
+        const { data, error } = await supabase.from('profiles').update({ is_sprint_ready: isReady }).eq('id', userId).select();
+        if (error) throw error;
+        return data ? data[0] : null;
+    },
+
+    async getReadyTutors(bootcampId: string) {
+        if (!checkEnv()) return [];
+        const { data: bc } = await supabase.from('bootcamps').select('instructor_id').eq('id', bootcampId).single();
+        if (!bc) return [];
+
+        const { data } = await supabase.from('profiles')
+            .select('*')
+            .eq('id', bc.instructor_id)
+            .eq('is_sprint_ready', true);
+
+        return data || [];
+    },
+
+    async createLightningSprint(bootcampId: string, title: string, context: string) {
+        if (!checkEnv()) return null;
+        const session = {
+            bootcamp_id: bootcampId,
+            title: `Lightning Sprint: ${title}`,
+            description: "High-intensity 1-on-1 sprint triggered by AI analysis.",
+            is_lightning_sprint: true,
+            context_ai: context,
+            join_url: `https://meet.bootcamp.elite/sprint-${Math.random().toString(36).substr(2, 6)}`,
+            duration_minutes: 10,
+            start_time: new Date().toISOString()
+        };
+        const { data, error } = await supabase.from('sessions').insert([session]).select();
+        if (error) throw error;
+        return data[0];
+    },
+
+    // SUBMISSIONS & AI AUDITS
+    async submitAssignment(submission: any) {
+        if (!checkEnv()) return null;
+        const { data, error } = await supabase.from('submissions').insert([submission]).select();
+        if (error) throw error;
+        return data[0];
+    },
+
+    async updateSubmission(submissionId: string, updates: any) {
+        if (!checkEnv()) return null;
+        const { data, error } = await supabase.from('submissions').update(updates).eq('id', submissionId).select();
+        if (error) throw error;
+        return data[0];
+    },
+
+    async getStudentSubmissions(studentId: string, bootcampId: string) {
+        if (!checkEnv()) return [];
+        const { data } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('student_id', studentId)
+            .eq('bootcamp_id', bootcampId)
+            .order('created_at', { ascending: false });
+        return data || [];
     }
 };

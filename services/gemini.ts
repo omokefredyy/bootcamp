@@ -74,3 +74,91 @@ export async function summarizeLecture(topic: string, transcript: string) {
     return null;
   }
 }
+
+export async function analyzeStruggle(chatContext: string) {
+  if (apiKey === "mock-key") {
+    // Return a chance-based struggle detection for demo if no API key
+    if (chatContext.length > 50 && Math.random() > 0.7) {
+      return { isStruggling: true, topic: "State Management", breakdown: "Student seems confused about how state updates are batch processed in React." };
+    }
+    return { isStruggling: false, topic: "", breakdown: "" };
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: `Analyze the following chat context and determine if the student is struggling or stuck on a technical concept. Do not trigger for casual conversation.
+      
+      Chat Context: ${chatContext}
+      
+      Respond in JSON format with:
+      1. "isStruggling": boolean
+      2. "topic": string (the core concept they are stuck on, empty if not struggling)
+      3. "breakdown": string (1-sentence summary of the confusion, empty if not struggling)`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isStruggling: { type: Type.BOOLEAN },
+            topic: { type: Type.STRING },
+            breakdown: { type: Type.STRING }
+          },
+          required: ["isStruggling", "topic", "breakdown"]
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '{"isStruggling": false}');
+  } catch (error) {
+    console.error("Struggle Analysis Error:", error);
+    return { isStruggling: false, topic: "", breakdown: "" };
+  }
+}
+
+export async function auditAssignment(repoUrl: string, notes: string) {
+  if (apiKey === "mock-key") {
+    return {
+      feedback: "Your repository looks organized. Ensure you have a clear README and license for professional standard.",
+      scoreMeter: 75,
+      improvements: ["Add a LICENSE file", "Document the API endpoints in README"]
+    };
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash-exp',
+      contents: `You are an Elite Technical Auditor. Audit the following student submission for a bootcamp project.
+      
+      GitHub Repo: ${repoUrl}
+      Student Notes: ${notes}
+      
+      Provide structural and professional feedback on what they can improve before a human tutor reviews it.
+      
+      Respond in JSON format with:
+      1. "feedback": string (2-3 sentences of overall tone and professional advice)
+      2. "scoreMeter": number (0-100 based on 'readiness' for professional review)
+      3. "improvements": Array<string> (at least 3 specific, actionable points)`,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            feedback: { type: Type.STRING },
+            scoreMeter: { type: Type.NUMBER },
+            improvements: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            }
+          },
+          required: ["feedback", "scoreMeter", "improvements"]
+        }
+      }
+    });
+
+    return JSON.parse(response.text || '{}');
+  } catch (error) {
+    console.error("Audit Error:", error);
+    return null;
+  }
+}

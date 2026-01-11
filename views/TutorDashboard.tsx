@@ -18,11 +18,11 @@ const TutorDashboard: React.FC<TutorDashboardProps> = ({ user, onLogout, onUpdat
   const [updates, setUpdates] = useState<BootcampUpdate[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
 
-  // Initialize with ownedBootcamps if available
   const [myBootcamps, setMyBootcamps] = useState<Bootcamp[]>(user.ownedBootcamps || []);
 
   const [isRegistering, setIsRegistering] = useState(myBootcamps.length === 0);
   const [balance, setBalance] = useState(0);
+  const [isSprintReady, setIsSprintReady] = useState(!!user.isSprintReady);
 
   const [regForm, setRegForm] = useState<BootcampData>(user.bootcampData || {
     title: '',
@@ -135,6 +135,12 @@ const TutorDashboard: React.FC<TutorDashboardProps> = ({ user, onLogout, onUpdat
       price: 499
     });
     setIsRegistering(true);
+  };
+
+  const toggleSprintReady = async () => {
+    const newState = !isSprintReady;
+    setIsSprintReady(newState);
+    await DataService.setSprintReadiness(user.id, newState);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -294,6 +300,15 @@ const TutorDashboard: React.FC<TutorDashboardProps> = ({ user, onLogout, onUpdat
               >
                 Modify Academy Settings
               </button>
+              <div>
+                <button
+                  onClick={toggleSprintReady}
+                  className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${isSprintReady ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 animate-pulse' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${isSprintReady ? 'bg-white' : 'bg-slate-400'}`}></div>
+                  {isSprintReady ? 'Sprint Ready: LIVE' : 'Go Sprint Ready'}
+                </button>
+              </div>
               <button
                 onClick={handleCreateBootcamp}
                 className="ml-4 px-6 py-3 bg-indigo-600 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100"

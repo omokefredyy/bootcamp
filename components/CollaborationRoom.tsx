@@ -4,6 +4,10 @@ import Whiteboard from './Whiteboard';
 import { DataService } from '../services/dataService';
 import { supabase } from '../supabaseClient';
 import { User } from '../types';
+import LightningSprintTracker from './LightningSprintTracker';
+import LectureRoom from './LectureRoom';
+import SubmissionJourney from './SubmissionJourney';
+import { auditAssignment } from '../services/gemini';
 
 interface CollaborationRoomProps {
   user: User;
@@ -14,6 +18,7 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
   const [activeTab, setActiveTab] = useState<'board' | 'tasks' | 'submissions'>('board');
   const [collabNotes, setCollabNotes] = useState<Array<{ user: string; text: string; id: string }>>([]);
   const [chatInput, setChatInput] = useState('');
+  const [activeSprint, setActiveSprint] = useState<any>(null);
 
   const [submissionData, setSubmissionData] = useState({
     repoUrl: '',
@@ -21,6 +26,8 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
     notes: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentSubmission, setCurrentSubmission] = useState<any>(null);
+  const [isAuditing, setIsAuditing] = useState(false);
 
   // Load collaboration messages
   useEffect(() => {
@@ -56,6 +63,14 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
       )
       .subscribe();
 
+    const loadSubmission = async () => {
+      if (user.role === 'student') {
+        const subs = await DataService.getStudentSubmissions(user.id, roomId);
+        if (subs.length > 0) setCurrentSubmission(subs[0]);
+      }
+    };
+    loadSubmission();
+
     return () => {
       supabase.removeChannel(channel);
     };
@@ -84,14 +99,46 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
     });
   };
 
-  const handleSubmission = (e: React.FormEvent) => {
+  const handleSubmission = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user.bootcampId) return;
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      alert('Assignment submitted successfully! Our tutors will review it shortly.');
+
+    try {
+      // 1. Save initial submission
+      const sub = await DataService.submitAssignment({
+        bootcamp_id: user.bootcampId,
+        student_id: user.id,
+        repo_url: submissionData.repoUrl,
+        demo_url: submissionData.demoUrl,
+        notes: submissionData.notes,
+        status: 'pending'
+      });
+
+      setCurrentSubmission(sub);
       setIsSubmitting(false);
+      setIsAuditing(true);
+
+      // 2. Trigger AI Pre-flight Audit
+      const audit = await auditAssignment(submissionData.repoUrl, submissionData.notes);
+
+      if (audit) {
+        const updated = await DataService.updateSubmission(sub.id, {
+          ai_feedback: audit.feedback,
+          score_meter: audit.scoreMeter,
+          status: 'ai_audited'
+        });
+        setCurrentSubmission(updated);
+      }
+    } catch (err) {
+      console.error("Submission Error:", err);
+      alert("Submission failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+      setIsAuditing(false);
       setSubmissionData({ repoUrl: '', demoUrl: '', notes: '' });
-    }, 1500);
+    }
   };
 
   return (
@@ -180,32 +227,66 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
         )}
 
         {activeTab === 'tasks' && (
-          <div className="flex-1 bg-white rounded-[3.5rem] p-12 border border-slate-100 shadow-sm overflow-y-auto">
+          <div className="flex-1 overflow-y-auto pb-20">
             <div className="flex justify-between items-center mb-10">
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Shared Team Backlog</h3>
-              <button className="px-6 py-2 bg-indigo-50 text-indigo-600 text-xs font-black uppercase rounded-xl hover:bg-indigo-600 hover:text-white transition-all">Add Task</button>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 tracking-tight">Elite Kanban Board</h3>
+                <p className="text-slate-400 text-sm font-medium mt-1">Manage team sprints and critical bottlenecks.</p>
+              </div>
+              <button className="px-8 py-3 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200">
+                New Sprint Task
+              </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {[
-                { title: 'System Architecture', status: 'In Progress', owner: 'Alex', desc: 'Define the VPC and subnets for the AWS deployment.' },
-                { title: 'User Auth Flow', status: 'Pending', owner: 'Emily', desc: 'Implement Cognito or custom JWT solution.' },
-                { title: 'Database Migrations', status: 'Completed', owner: 'Sarah (Tutor)', desc: 'Initial schema for Users and Projects table.' },
-                { title: 'Frontend UI Scaffold', status: 'In Progress', owner: 'Team', desc: 'Set up Tailwind and layout components.' }
-              ].map((item, i) => (
-                <div key={i} className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 hover:border-indigo-200 transition-all group">
-                  <div className="flex justify-between items-start mb-4">
-                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${item.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                      item.status === 'In Progress' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
-                      }`}>
-                      {item.status}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {['Pending', 'In Progress', 'Completed'].map(status => (
+                <div key={status} className="flex flex-col gap-6">
+                  <div className="flex items-center justify-between px-2">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${status === 'In Progress' ? 'bg-indigo-600' : status === 'Completed' ? 'bg-emerald-500' : 'bg-slate-300'}`}></span>
+                      {status}
+                    </h4>
+                    <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                      {[
+                        { title: 'System Architecture', status: 'In Progress', owner: 'Alex', priority: 'High', desc: 'Define the VPC and subnets for the AWS deployment.' },
+                        { title: 'User Auth Flow', status: 'Pending', owner: 'Emily', priority: 'Medium', desc: 'Implement Cognito or custom JWT solution.' },
+                        { title: 'Database Migrations', status: 'Completed', owner: 'Sarah', priority: 'Critical', desc: 'Initial schema for Users and Projects table.' },
+                        { title: 'Frontend UI Scaffold', status: 'In Progress', owner: 'Team', priority: 'Low', desc: 'Set up Tailwind and layout components.' }
+                      ].filter(t => t.status === status).length}
                     </span>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assigned: {item.owner}</span>
                   </div>
-                  <h4 className="text-xl font-black text-slate-900 mb-3">{item.title}</h4>
-                  <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">{item.desc}</p>
-                  <button className="w-full py-4 bg-white border border-slate-200 text-slate-900 font-bold rounded-2xl hover:border-indigo-600 hover:text-indigo-600 transition-all text-xs uppercase tracking-widest">
-                    Manage Task
-                  </button>
+
+                  <div className="space-y-4">
+                    {[
+                      { title: 'System Architecture', status: 'In Progress', owner: 'Alex', priority: 'High', desc: 'Define the VPC and subnets for the AWS deployment.' },
+                      { title: 'User Auth Flow', status: 'Pending', owner: 'Emily', priority: 'Medium', desc: 'Implement Cognito or custom JWT solution.' },
+                      { title: 'Database Migrations', status: 'Completed', owner: 'Sarah', priority: 'Critical', desc: 'Initial schema for Users and Projects table.' },
+                      { title: 'Frontend UI Scaffold', status: 'In Progress', owner: 'Team', priority: 'Low', desc: 'Set up Tailwind and layout components.' }
+                    ].filter(t => t.status === status).map((item, i) => (
+                      <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:border-indigo-600 transition-all group relative overflow-hidden">
+                        {item.priority === 'Critical' && (
+                          <div className="absolute top-0 right-0 w-16 h-1 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]"></div>
+                        )}
+                        <div className="flex justify-between items-start mb-4">
+                          <span className={`text-[8px] font-black uppercase tracking-tighter px-2 py-0.5 rounded ${item.priority === 'Critical' ? 'bg-red-50 text-red-600' :
+                              item.priority === 'High' ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-500'
+                            }`}>
+                            {item.priority} Priority
+                          </span>
+                          <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-400 border border-slate-100">
+                            {item.owner[0]}
+                          </div>
+                        </div>
+                        <h5 className="text-base font-black text-slate-900 mb-2 leading-tight">{item.title}</h5>
+                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed mb-6">{item.desc}</p>
+
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                          <span className="text-[10px] font-black text-indigo-600/50 uppercase tracking-widest text-xs">Manage</span>
+                          <svg className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -213,10 +294,52 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
         )}
 
         {activeTab === 'submissions' && (
-          <div className="flex-1 max-w-4xl mx-auto w-full">
+          <div className="flex-1 max-w-5xl mx-auto w-full space-y-8 overflow-y-auto pb-20">
+            {currentSubmission && (
+              <SubmissionJourney
+                status={currentSubmission.status}
+                scoreMeter={currentSubmission.score_meter || 0}
+              />
+            )}
+
+            {currentSubmission?.ai_feedback && (
+              <div className="bg-indigo-600 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden group animate-fadeIn">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 group-hover:scale-125 transition-transform duration-700"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-widest text-indigo-100">Elite AI Pre-flight Audit</span>
+                  </div>
+                  <h4 className="text-2xl font-black mb-4">Immediate Feedback Report</h4>
+                  <p className="text-indigo-50 text-lg leading-relaxed font-medium mb-8 max-w-3xl">
+                    "{currentSubmission.ai_feedback}"
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white/10 p-6 rounded-3xl border border-white/10">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-3 text-indigo-200">Suggested Refinements</p>
+                      <ul className="space-y-2">
+                        <li className="flex items-center gap-2 text-sm font-bold">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                          Ensure README has setup instructions
+                        </li>
+                        <li className="flex items-center gap-2 text-sm font-bold">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                          Check for sensitive keys in public scripts
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-[3.5rem] p-12 shadow-sm border border-slate-100">
               <div className="mb-10">
-                <h3 className="text-3xl font-black text-slate-900 mb-2">Final Assignment Submission</h3>
+                <h3 className="text-3xl font-black text-slate-900 mb-2">
+                  {currentSubmission ? 'Resubmit Assignment' : 'Final Assignment Submission'}
+                </h3>
                 <p className="text-slate-500 font-medium">Ready to turn in your work? Provide your links below for tutor evaluation.</p>
               </div>
 
@@ -259,18 +382,18 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
 
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isAuditing}
                   className="w-full py-5 bg-indigo-600 text-white font-black uppercase tracking-widest rounded-[2rem] hover:bg-indigo-700 shadow-2xl shadow-indigo-200 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                 >
-                  {isSubmitting ? (
+                  {isSubmitting || isAuditing ? (
                     <>
                       <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                      Submitting for Review...
+                      {isAuditing ? 'AI is auditing your work...' : 'Submitting...'}
                     </>
                   ) : (
                     <>
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      Turn in Assignment
+                      {currentSubmission ? 'Push Updated Version' : 'Push Final Build'}
                     </>
                   )}
                 </button>
@@ -289,6 +412,35 @@ const CollaborationRoom: React.FC<CollaborationRoomProps> = ({ user, roomId = 'd
           </div>
         )}
       </div>
+
+      {/* AI Lightning Sprint Monitor */}
+      {user.bootcampId && (
+        <LightningSprintTracker
+          user={user}
+          bootcampId={user.bootcampId}
+          messages={collabNotes}
+          onSprintJoined={(session) => setActiveSprint(session)}
+        />
+      )}
+
+      {/* Sprint Video Modal */}
+      {activeSprint && (
+        <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col">
+          <div className="absolute top-8 right-8 z-[110]">
+            <button
+              onClick={() => setActiveSprint(null)}
+              className="px-6 py-2 bg-red-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-2xl"
+            >
+              Exit Sprint
+            </button>
+          </div>
+          <LectureRoom
+            user={user}
+            bootcampId={user.bootcampId || ''}
+            isTutor={user.role === 'tutor'}
+          />
+        </div>
+      )}
     </div>
   );
 };

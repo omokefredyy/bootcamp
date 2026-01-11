@@ -187,7 +187,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onLogout, onUpdateUser }) =
           </div>
         );
       case 'collab':
-        return <CollaborationRoom />;
+        return <CollaborationRoom user={user} roomId={user.bootcampId || 'default'} />;
       case 'chat':
         return <GlobalChat user={user} />;
       case 'messages':
