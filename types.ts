@@ -128,9 +128,10 @@ export interface Transaction {
 export interface ChatMessage {
   id: string;
   sender_id?: string;
-  sender_name: string;
-  message: string;
-  created_at: string;
+  sender: string; // Display name (maps to sender_name in DB)
+  text: string; // Message content (maps to message in DB)
+  timestamp: number; // Unix timestamp for display
+  role: 'user' | 'model' | 'system';
 }
 
 export interface DirectMessage {
